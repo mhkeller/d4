@@ -1,6 +1,6 @@
-/*! d4 - v0.9.4
+/*! d4 - v0.8.10
  *  License: MIT Expat
- *  Date: 2015-04-14
+ *  Date: 2014-10-17
  *  Copyright: Mark Daggett, D4 Team
  */
 /*!
@@ -10,6 +10,7 @@
   Underscore may be freely distributed under the MIT license.
 */
 (function() {
+    var d3 = require('d3')
   'use strict';
 
   var root = this;
@@ -201,7 +202,7 @@
    *       chart.builder(function() {
    *           return {
    *               link: function(chart, data) {
-   *                   // false;
+   *                   console.log(chart.x.domain.$dirty) // false;
    *               }
    *           }
    *       });
@@ -281,9 +282,6 @@
       link: function(chart, data) {
         d4.builders[chart.x.$scale + 'ScaleForNestedData'](chart, data, 'x');
         d4.builders[chart.y.$scale + 'ScaleForNestedData'](chart, data, 'y');
-        if (chart.groups) {
-          d4.builders[chart.groups.$scale + 'ScaleForNestedData'](chart, data, 'groups');
-        }
       }
     });
     var chartAccessors = d4.merge({}, config.accessors);
@@ -329,9 +327,12 @@
   };
 
   var prepareDataForFeature = function(opts, name, data) {
-    var result = opts.features[name].accessors.beforeRender.bind(opts)(data);
-    if (d4.isDefined(result)) {
-      data = result;
+    var feature = opts.features[name];
+    if (d4.isFunction(feature.prepare)) {
+      data = feature.prepare.bind(opts)(data);
+      if (d4.isUndefined(data)) {
+        err('"feature.prepare()" must return a data array. However, the prepare function for the "{0}" feature did not', name);
+      }
     }
     return data;
   };
@@ -357,16 +358,16 @@
   };
 
   var scaffoldChart = function(selection) {
-    if (selection.tagName === 'svg') {
+    if (selection.tagName == "svg") {
       this.container = d3.select(selection)
-        .classed('d4', true)
-        .classed('chart', true)
+        .classed("d4", true)
+        .classed("chart", true)
         .attr('width', Math.max(0, this.width + this.margin.left + this.margin.right))
         .attr('height', Math.max(0, this.height + this.margin.top + this.margin.bottom));
-    } else if (selection.tagName === 'g') {
+    } else if (selection.tagName == "g") {
       this.container = d3.select(selection)
-        .classed('d4', true)
-        .classed('chart', true);
+        .classed("d4", true)
+        .classed("chart", true)
 
     } else {
       this.container = d4.appendOnce(d3.select(selection), 'svg.d4.chart')
@@ -482,7 +483,6 @@
       var baseFeature = {
         accessors: {
           afterRender: function() {},
-          beforeRender: function() {}
         },
         proxies: []
       };
@@ -648,7 +648,7 @@
      *      .mixout('yAxis');
      *
      *      // Now test that the feature has been removed.
-     *      
+     *      console.log(chart.features());
      *      // => ["bars", "barLabels", "xAxis"]
      *
      * @return {Array} An array of features.
@@ -727,7 +727,7 @@
      *      .mixout('yAxis');
      *
      *      // Now test that the feature has been removed.
-     *      
+     *      console.log(chart.features());
      *      => ["bars", "barLabels", "xAxis"]
      *
      * @param {String} name - accessor name for chart feature.
@@ -1166,10 +1166,12 @@
     d4.parsers[name] = funct;
     return d4.parsers[name];
   };
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function(d4) {
+  // 'use strict';
+
+  d4 = d4 || {}
   d4.helpers = {};
 
   // FIXME: Provide this using DI.
@@ -1289,21 +1291,21 @@
       while (word) {
         line.push(word);
         tspan.text(line.join(' '));
-        if (tspan.node().getComputedTextLength() > width - Math.abs(x)) {
-          line.pop();
-          tspan.text(line.join(' '));
-          line = [word];
-          tspan = text.append('tspan').attr('x', x).attr('y', y).attr('dy', ++lineNumber * lineHeight + dy + 'em').text(word);
-        }
+        // if (tspan.node().getComputedTextLength() > width - Math.abs(x)) {
+        //   line.pop();
+        //   tspan.text(line.join(' '));
+        //   line = [word];
+        //   tspan = text.append('tspan').attr('x', x).attr('y', y).attr('dy', ++lineNumber * lineHeight + dy + 'em').text(word);
+        // }
         word = words.pop();
       }
     });
   };
 
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The column chart has two axes (`x` and `y`). By default the column chart expects
@@ -1355,9 +1357,8 @@
    *
    * @name column
    */
-  d4.chart('column', function column(config) {
-    var _config = config || {};
-    return d4.baseChart(_config)
+  d4.chart('column', function column() {
+    return d4.baseChart()
       .mixin([{
         'name': 'bars',
         'feature': d4.features.rectSeries
@@ -1372,10 +1373,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The donut chart
@@ -1446,9 +1447,8 @@
    *
    * @name donut
    */
-  d4.chart('donut', function donut(config) {
-    var _config = config || {};
-    return d4.baseChart(d4.extend({
+  d4.chart('donut', function donut() {
+    return d4.baseChart({
       config: {
         accessors: {
           radius: function() {
@@ -1459,19 +1459,20 @@
           }
         }
       }
-    }, _config))
-      .mixin([{
-        'name': 'arcs',
-        'feature': d4.features.arcSeries
-      }, {
-        'name': 'arcLabels',
-        'feature': d4.features.arcLabels
-      }]);
+    })
+      .mixin(
+        [{
+          'name': 'arcs',
+          'feature': d4.features.arcSeries
+        }, {
+          'name': 'arcLabels',
+          'feature': d4.features.arcLabels
+        }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The grouped column chart is used to compare a series of data elements grouped
@@ -1525,35 +1526,27 @@
    *
    * @name groupedColumn
    */
-  d4.chart('groupedColumn', function groupedColumn(config) {
-    var _config = config || {};
+  d4.chart('groupedColumn', function groupedColumn() {
     var columnLabelOverrides = function() {
       return {
         accessors: {
-          x: function(d) {
-            var groupX = this.x(d[this.x.$key]);
-            var rectX = this.groups(d[this.groups.$key]);
-            var rectWidthOffset = this.groups.rangeBand() / 2;
-            return groupX + rectX + rectWidthOffset;
+          x: function(d, i) {
+            var width = this.x.rangeBand() / this.groupsOf;
+            var xPos = this.x(d[this.x.$key]) + width * i;
+            var gutter = width * 0.1;
+            return xPos + width / 2 - gutter;
           }
         }
       };
     };
 
-    return d4.baseChart(d4.extend({
+    return d4.baseChart({
       config: {
-        axes: {
-          groups: {
-            scale: 'ordinal',
-            dimension: 'x',
-            roundBands: 0.1
-          }
-        },
         accessors: {
           groupsOf: 1
         }
       }
-    }, _config))
+    })
       .mixin([{
         'name': 'bars',
         'feature': d4.features.groupedColumnSeries
@@ -1569,10 +1562,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The grouped row chart is used to compare a series of data elements grouped
@@ -1626,22 +1619,21 @@
    *
    * @name groupedRow
    */
-  d4.chart('groupedRow', function groupedRow(config) {
-    var _config = config || {};
+  d4.chart('groupedRow', function groupedRow() {
     var rowLabelOverrides = function() {
       return {
         accessors: {
-          y: function(d) {
-            var groupY = this.y(d[this.y.$key]);
-            var rectY = this.groups(d[this.groups.$key]);
-            var rectHeightOffset = this.groups.rangeBand() / 3;
-            return groupY + rectY + rectHeightOffset;
+          y: function(d, i) {
+            var height = this.y.rangeBand() / this.groupsOf;
+            var yPos = this.y(d[this.y.$key]) + height * i;
+            var gutter = height * 0.1;
+            return yPos + height / 4 + gutter;
           }
         }
       };
     };
 
-    return d4.baseChart(d4.extend({
+    return d4.baseChart({
       config: {
         accessors: {
           groupsOf: 1
@@ -1658,15 +1650,10 @@
           },
           y: {
             scale: 'ordinal'
-          },
-          groups: {
-            scale: 'ordinal',
-            dimension: 'y',
-            roundBands: 0.1
           }
         }
       }
-    }, _config))
+    })
       .mixin([{
         'name': 'bars',
         'feature': d4.features.groupedColumnSeries
@@ -1682,10 +1669,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The line series chart is used to compare a series of data elements grouped
@@ -1742,9 +1729,8 @@
    *
    * @name line
    */
-  d4.chart('line', function line(config) {
-    var _config = config || {};
-    return d4.baseChart(_config).mixin([{
+  d4.chart('line', function line() {
+    return d4.baseChart().mixin([{
       'name': 'lineSeries',
       'feature': d4.features.lineSeries
     }, {
@@ -1758,10 +1744,10 @@
       'feature': d4.features.lineSeriesLabels
     }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The row chart has two axes (`x` and `y`). By default the column chart expects
@@ -1791,9 +1777,8 @@
    *
    * @name row
    */
-  d4.chart('row', function row(config) {
-    var _config = config || {};
-    return d4.baseChart(d4.extend({
+  d4.chart('row', function row() {
+    return d4.baseChart({
       config: {
         margin: {
           top: 20,
@@ -1811,7 +1796,7 @@
           }
         }
       }
-    }, _config))
+    })
       .mixin([{
         'name': 'bars',
         'feature': d4.features.rectSeries
@@ -1826,10 +1811,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   var scatterPlotBuilder = function() {
     var configureScales = function(chart, data) {
@@ -1953,9 +1938,8 @@
    *
    * @name scatterPlot
    */
-  d4.chart('scatterPlot', function scatterPlot(config) {
-    var _config = config || {};
-    return d4.baseChart(d4.extend({
+  d4.chart('scatterPlot', function scatterPlot() {
+    return d4.baseChart({
       builder: scatterPlotBuilder,
       config: {
         axes: {
@@ -1967,7 +1951,7 @@
           }
         }
       }
-    }, _config))
+    })
       .mixin([{
         'name': 'circles',
         'feature': d4.features.circleSeries,
@@ -1984,10 +1968,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * The stacked column chart has two axes (`x` and `y`). By default the stacked
@@ -2048,8 +2032,7 @@
    *
    * @name stackedColumn
    */
-  d4.chart('stackedColumn', function stackedColumn(config) {
-    var _config = config || {};
+  d4.chart('stackedColumn', function stackedColumn() {
     var columnLabelsOverrides = function() {
       var extractValues = function(data) {
         var arr = [];
@@ -2096,19 +2079,18 @@
 
       return {
         accessors: {
-          beforeRender: function(data) {
-            return calculateStackTotals.bind(this)(data);
-          },
-          y: function(yScaleId, d) {
-            var axis = this[yScaleId];
+          y: function(d) {
             var padding = 5;
-            return axis(d.size) - padding;
+            return this.y(d.size) - padding;
           }
+        },
+        prepare: function(data) {
+          return calculateStackTotals.bind(this)(data);
         }
       };
     };
 
-    return d4.baseChart(_config)
+    return d4.baseChart()
       .mixin([{
         'name': 'bars',
         'feature': d4.features.rectSeries
@@ -2130,10 +2112,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * The stacked row chart has two axes (`x` and `y`). By default the stacked
    * row expects continious scale for the `x` axis and a discrete scale for
@@ -2194,8 +2176,7 @@
    *
    * @name stackedRow
    */
-  d4.chart('stackedRow', function stackedRow(config) {
-    var _config = config || {};
+  d4.chart('stackedRow', function stackedRow() {
     var columnLabelsOverrides = function() {
       var extractValues = function(data) {
         var arr = [];
@@ -2242,19 +2223,18 @@
 
       return {
         accessors: {
-          beforeRender: function(data) {
-            return calculateStackTotals.bind(this)(data);
-          },
-
           x: function(d) {
             var padding = 5;
             return this.x(d.size) + padding;
           }
         },
+        prepare: function(data) {
+          return calculateStackTotals.bind(this)(data);
+        }
       };
     };
 
-    return d4.baseChart(d4.extend({
+    return d4.baseChart({
       config: {
         margin: {
           top: 20,
@@ -2271,7 +2251,7 @@
           }
         }
       }
-    }, _config))
+    })
       .mixin([{
         'name': 'bars',
         'feature': d4.features.rectSeries
@@ -2293,10 +2273,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   var columnSeriesOverrides = function waterfall() {
     return {
@@ -2319,7 +2299,7 @@
           }
         },
 
-        width: function(dimension, d) {
+        width: function(d) {
           if (d4.isOrdinalScale(this.x)) {
             return this.x.rangeBand();
           } else {
@@ -2327,7 +2307,7 @@
           }
         },
 
-        height: function(dimension, d) {
+        height: function(d) {
           if (d4.isContinuousScale(this.y)) {
             return Math.abs(this.y(d.y0) - this.y(d.y0 + d.y));
           } else {
@@ -2406,13 +2386,7 @@
           return d.y + d.y0;
         });
       })));
-
-      ext[0] = d4.isDefined(chart[dimension].$min) ? chart[dimension].$min : Math.min(0, ext[0]);
-
-      if (d4.isDefined(chart[dimension].$max)) {
-        ext[1] = chart[dimension].$max;
-      }
-
+      ext[0] = Math.min(0, ext[0]);
       chart[dimension].domain(ext);
       chart[dimension].range(rangeBoundsFor.bind(this)(chart, dimension))
         .clamp(true)
@@ -2494,11 +2468,10 @@
    *
    * @name waterfall
    */
-  d4.chart('waterfall', function waterfallChart(config) {
-    var _config = config || {};
-    return d4.baseChart(d4.extend({
+  d4.chart('waterfall', function waterfallChart() {
+    return d4.baseChart({
       builder: waterfallChartBuilder
-    }, _config))
+    })
       .mixin([{
         'name': 'bars',
         'feature': d4.features.rectSeries,
@@ -2518,10 +2491,10 @@
         'feature': d4.features.yAxis
       }]);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * Arc labels are used to annotate arc series, for example those created by pie and donut charts.
    * Many of the accessors of this feature proxy directly to D3's arc object:
@@ -2634,10 +2607,10 @@
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * Arc series is a collection of arcs suitable for those needed by pie and donut charts.
    * Many of the accessors of this feature proxy directly to D3's arc object:
@@ -2704,24 +2677,16 @@
           .innerRadius(r)
           .outerRadius(r - aw);
 
-        var group = d4.appendOnce(selection, 'g.' + name);
-        var arcGroups = group.selectAll('g.' + name + '-group')
-          .data(data);
-
-        arcGroups.enter().append('g');
-
-        arcGroups.attr('class', name + '-group')
+        var group = selection.selectAll('g.' + name).data(data);
+        group.enter()
+          .append('g')
+          .attr('class', name)
           .attr('transform', 'translate(' + x + ',' + y + ')');
 
-        var arcs = arcGroups.selectAll('path')
+        var arcs = group.selectAll('path')
           .data(function(d) {
             return d.values;
           }, d4.functor(scope.accessors.key).bind(this));
-
-        arcs.enter().append('path')
-          .each(function(d) {
-            this._current = d;
-          });
 
         // update
         arcs.transition()
@@ -2729,21 +2694,26 @@
           .attrTween('d', arcTween);
 
         // create new elements as needed
-        arcs.attr('class', d4.functor(scope.accessors.classes).bind(this))
+        arcs.enter()
+          .append('path')
+          .attr('class', d4.functor(scope.accessors.classes).bind(this))
           .attr('data-key', d4.functor(scope.accessors.key).bind(this))
-          .attr('d', arc);
+          .attr('d', arc)
+          .each(function(d) {
+            this._current = d;
+          });
 
         //remove old elements as needed
         arcs.exit().remove();
-        arcGroups.exit().remove();
+        group.exit().remove();
         return arc;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * The arrow feature is a convienient way to visually draw attention to a portion
    * of a chart by pointing an arrow at it.
@@ -2808,10 +2778,10 @@
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   d4.feature('brush', function(name) {
     var brush = d3.svg.brush();
@@ -2909,10 +2879,10 @@
     };
     return obj;
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * The columnLabels feature is used to affix data labels to column series.
    *
@@ -2933,59 +2903,47 @@
       accessors: {
         key: d4.functor(d4.defaultKey),
 
-        x: function(xScaleId, d) {
-          var axis = this[xScaleId];
-          if (d4.isOrdinalScale(axis)) {
-            return axis(d[axis.$key]) + (axis.rangeBand() / 2);
+        x: function(d) {
+          if (d4.isOrdinalScale(this.x)) {
+            return this.x(d[this.x.$key]) + (this.x.rangeBand() / 2);
           } else {
-            var width = Math.abs(axis(d[axis.$key]) - axis(0));
-            return axis(d[axis.$key]) - width / 2;
+            var width = Math.abs(this.x(d[this.x.$key]) - this.x(0));
+            return this.x(d[this.x.$key]) - width / 2;
           }
         },
 
-        y: function(yScaleId, d) {
-          var axis = this[yScaleId];
-          if (d4.isOrdinalScale(axis)) {
-            return axis(d[axis.$key]) + (axis.rangeBand() / 2) + padding;
+        y: function(d) {
+          if (d4.isOrdinalScale(this.y)) {
+            return this.y(d[this.y.$key]) + (this.y.rangeBand() / 2) + padding;
           } else {
-            var height = Math.abs(axis(d[axis.$key]) - axis(0));
-            return (d[axis.$key] < 0 ? axis(d[axis.$key]) - height : axis(d[axis.$key])) - padding;
+            var height = Math.abs(this.y(d[this.y.$key]) - this.y(0));
+            return (d[this.y.$key] < 0 ? this.y(d[this.y.$key]) - height : this.y(d[this.y.$key])) - padding;
           }
         },
 
         text: function(d) {
           return d[this.valueKey];
-        },
-
-        xScaleId: function() {
-          return 'x';
-        },
-
-        yScaleId: function() {
-          return 'y';
         }
       },
       render: function(scope, data, selection) {
-        var xScaleId = d4.functor(scope.accessors.xScaleId)();
-        var yScaleId = d4.functor(scope.accessors.yScaleId)();
-        var group = d4.appendOnce(selection, 'g.' + name);
-        var label = group.selectAll('text')
+        selection.append('g').attr('class', name);
+        var label = this.container.select('.' + name).selectAll('.' + name)
           .data(data, d4.functor(scope.accessors.key).bind(this));
         label.enter().append('text');
         label.exit().remove();
-        label.attr('class', 'column-label ' + name)
+        label.attr('class', 'column-label')
           .text(d4.functor(scope.accessors.text).bind(this))
           .attr('text-anchor', anchorText.bind(this))
-          .attr('x', d4.functor(scope.accessors.x).bind(this, xScaleId))
-          .attr('y', d4.functor(scope.accessors.y).bind(this, yScaleId));
+          .attr('x', d4.functor(scope.accessors.x).bind(this))
+          .attr('y', d4.functor(scope.accessors.y).bind(this));
         return label;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * This feature allows you to specify a grid over a portion or the entire chart area.
    *
@@ -3020,38 +2978,35 @@
         var formattedXAxis = d4.functor(scope.accessors.formatXAxis).bind(this)(xAxis);
         var formattedYAxis = d4.functor(scope.accessors.formatYAxis).bind(this)(yAxis);
 
-        var grid = d4.appendOnce(selection, 'g.grid.border.' + name);
-        var gridBg = d4.appendOnce(grid, 'rect');
-        var gridX = d4.appendOnce(grid, 'g.x.grid.' + name);
-        var gridY = d4.appendOnce(grid, 'g.y.grid.' + name);
-
-        gridBg
+        selection.append('g').attr('class', 'grid border ' + name)
           .attr('transform', 'translate(0,0)')
+          .append('rect')
           .attr('x', 0)
           .attr('y', 0)
           .attr('width', this.width)
           .attr('height', this.height);
 
-        gridX
+        selection.append('g')
+          .attr('class', 'x grid ' + name)
           .attr('transform', 'translate(0,' + this.height + ')')
           .call(formattedXAxis
             .tickSize(-this.height, 0, 0)
             .tickFormat(''));
 
-        gridY
+        selection.append('g')
+          .attr('class', 'y grid ' + name)
           .attr('transform', 'translate(0,0)')
           .call(formattedYAxis
             .tickSize(-this.width, 0, 0)
             .tickFormat(''));
-
-        return grid;
+        return selection;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * This feature is specifically designed to use with the groupedColumn and groupedRow charts.
    *
@@ -3062,32 +3017,23 @@
       return (val > 0) ? 'positive' : 'negative';
     };
 
-    var useDiscretePosition = function(d) {
-      return this.groups(d[this.groups.$key]);
-    };
-
-    var useDiscreteGroupPosition = function(d) {
-      var dimension = this.groups.$dimension;
+    var useDiscretePosition = function(dimension, d, i) {
       var axis = this[dimension];
-      var pos = axis(d.values[0][axis.$key]);
-      var translate;
-      if (dimension === 'x') {
-        translate = [pos, 0];
-      } else if (dimension === 'y') {
-        translate = [0, pos];
-      }
-      return 'translate(' + translate + ')';
+      var size = axis.rangeBand() / this.groupsOf;
+      var pos = axis(d[axis.$key]) + size * i;
+      return pos;
     };
 
-    var useDiscreteSize = function() {
-      return this.groups.rangeBand();
+    var useDiscreteSize = function(dimension) {
+      var axis = this[dimension];
+      var size = axis.rangeBand() / this.groupsOf;
+      var gutter = size * 0.1;
+      return size - gutter;
     };
 
     var useContinuousSize = function(dimension, d) {
       var axis = this[dimension];
-      var domainMin = axis.domain()[0];
-      var axisMin = (domainMin < 0) ? 0 : domainMin;
-      return Math.abs(axis(d[axis.$key]) - axis(axisMin));
+      return Math.abs(axis(d[axis.$key]) - axis(0));
     };
 
     var useContinuousPosition = function(dimension, d) {
@@ -3107,11 +3053,11 @@
           return 'bar fill item' + i + ' ' + sign(d[this.valueKey]) + ' ' + d[this.valueKey];
         },
 
-        height: function(yScaleId, d) {
+        height: function(d) {
           if (d4.isOrdinalScale(this.y)) {
-            return useDiscreteSize.bind(this)(yScaleId);
+            return useDiscreteSize.bind(this)('y');
           } else {
-            return useContinuousSize.bind(this)(yScaleId, d);
+            return useContinuousSize.bind(this)('y', d);
           }
         },
 
@@ -3121,21 +3067,17 @@
 
         ry: 0,
 
-        width: function(xScaleId, d) {
+        width: function(d) {
           if (d4.isOrdinalScale(this.x)) {
-            return useDiscreteSize.bind(this)();
+            return useDiscreteSize.bind(this)('x');
           } else {
-            return useContinuousSize.bind(this)(xScaleId, d);
+            return useContinuousSize.bind(this)('x', d);
           }
-        },
-
-        groupPositions: function(d, i) {
-          return useDiscreteGroupPosition.bind(this)(d, i);
         },
 
         x: function(d, i) {
           if (d4.isOrdinalScale(this.x)) {
-            return useDiscretePosition.bind(this)(d);
+            return useDiscretePosition.bind(this)('x', d, i);
           } else {
             return useContinuousPosition.bind(this)('x', d, i);
           }
@@ -3143,65 +3085,42 @@
 
         y: function(d, i) {
           if (d4.isOrdinalScale(this.y)) {
-            return useDiscretePosition.bind(this)(d);
+            return useDiscretePosition.bind(this)('y', d, i);
           } else {
             return useContinuousPosition.bind(this)('y', d, i);
           }
-        },
-
-        xScaleId: function() {
-          return 'x';
-        },
-
-        yScaleId: function() {
-          return 'y';
         }
       },
       render: function(scope, data, selection) {
-        if (data.length > 0) {
-          this.groupsOf = this.groupsOf || data[0].values.length;
-        }
-
-        var xScaleId = d4.functor(scope.accessors.xScaleId)();
-        var yScaleId = d4.functor(scope.accessors.yScaleId)();
-        var group = d4.appendOnce(selection, 'g.' + name);
-
-        var columnGroups = group.selectAll('g')
+        selection.append('g').attr('class', name);
+        var group = this.container.select('.' + name).selectAll('g')
           .data(data, d4.functor(scope.accessors.key).bind(this));
-
-        columnGroups.enter().append('g');
-        columnGroups.attr('class', function(d, i) {
+        group.enter().append('g');
+        group.exit().remove();
+        group.attr('class', function(d, i) {
           return 'series' + i + ' ' + this.x.$key;
-        }.bind(this))
-          .attr('transform', d4.functor(scope.accessors.groupPositions).bind(this));
+        }.bind(this));
 
-        var rect = columnGroups.selectAll('rect')
+        var rect = group.selectAll('rect')
           .data(function(d) {
             return d.values;
           }.bind(this));
-
-        rect.enter().append('rect');
-
-        rect
+        rect.enter().append('rect')
           .attr('class', d4.functor(scope.accessors.classes).bind(this))
           .attr('x', d4.functor(scope.accessors.x).bind(this))
           .attr('y', d4.functor(scope.accessors.y).bind(this))
           .attr('ry', d4.functor(scope.accessors.ry).bind(this))
           .attr('rx', d4.functor(scope.accessors.rx).bind(this))
-          .attr('width', d4.functor(scope.accessors.width).bind(this, xScaleId))
-          .attr('height', d4.functor(scope.accessors.height).bind(this, yScaleId));
-
-        rect.exit().remove();
-        columnGroups.exit().remove();
-
+          .attr('width', d4.functor(scope.accessors.width).bind(this))
+          .attr('height', d4.functor(scope.accessors.height).bind(this));
         return rect;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * Approach based off this example:
    * http://bl.ocks.org/mbostock/3902569
@@ -3343,10 +3262,11 @@
       },
 
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
-        var label = group.selectAll('.seriesLabel').data(data);
+        selection.append('g').attr('class', name);
+        var label = this.container.select('.' + name).selectAll('.' + name).data(data);
         label.enter().append('text');
-        label
+        label.exit().remove();
+        label.attr('class', 'line-series-label')
           .text(d4.functor(scope.accessors.text).bind(this))
           .attr('x', d4.functor(scope.accessors.x).bind(this))
           .attr('y', d4.functor(scope.accessors.y).bind(this))
@@ -3356,15 +3276,14 @@
           }.bind(this));
         displayXValue.bind(this)(scope, data, selection);
 
-        label.exit().remove();
         return label;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    *
    * @name lineSeries
@@ -3392,41 +3311,31 @@
         target: line
       }],
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
+        selection.append('g').attr('class', name);
         line
           .x(d4.functor(scope.accessors.x).bind(this))
           .y(d4.functor(scope.accessors.y).bind(this));
 
-        var lineGroups = group.selectAll('g')
+        var group = selection.select('.' + name).selectAll('g')
           .data(data, d4.functor(scope.accessors.key).bind(this));
-
-        lineGroups.enter().append('g')
+        group.exit().remove();
+        group.enter().append('g')
           .attr('data-key', function(d) {
             return d.key;
           })
-          .attr('class', d4.functor(scope.accessors.classes).bind(this));
-
-        var lines = lineGroups.selectAll('path')
-          .data(function(d) {
-            return [d];
+          .attr('class', d4.functor(scope.accessors.classes).bind(this))
+          .append('path')
+          .attr('d', function(d) {
+            return line(d.values);
           });
-
-        lines.enter().append('path');
-        lines.attr('d', function(d) {
-          return line(d.values);
-        });
-
-        lines.exit().remove();
-        lineGroups.exit().remove();
-
-        return lineGroups;
+        return group;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * The reference line feature is helpful when you want to apply a line to a chart
    * which demarcates a value within the data. For example a common use of this
@@ -3457,10 +3366,8 @@
         }
       },
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
-        var referenceLine = d4.appendOnce(group, 'line');
-
-        group.select('line')
+        selection.append('g').attr('class', name);
+        var referenceLine = d4.appendOnce(this.container.select('.' + name), 'line')
           .attr('class', d4.functor(scope.accessors.classes).bind(this))
           .attr('x1', d4.functor(scope.accessors.x1).bind(this))
           .attr('x2', d4.functor(scope.accessors.x2).bind(this))
@@ -3470,10 +3377,10 @@
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * Column connectors helpful when displaying a stacked column chart.
    * A connector will not connect positve and negative columns. This is because
@@ -3531,21 +3438,21 @@
       },
 
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
-        var connectorGroups = group.selectAll('g')
-          .data(data);
-
-        connectorGroups.enter().append('g')
+        selection.append('g').attr('class', name);
+        var group = this.container.select('.' + name).selectAll('g')
+          .data(data)
+          .enter().append('g')
           .attr('class', function(d, i) {
             return 'series' + i + ' ' + this.y.$key;
           }.bind(this));
 
-        var lines = connectorGroups.selectAll('line')
+        var lines = group.selectAll('lines')
           .data(function(d) {
             return d.values;
           }.bind(this));
 
         lines.enter().append('line');
+        lines.exit().remove();
         lines
           .attr('class', d4.functor(scope.accessors.classes).bind(this))
           .attr('stroke-dasharray', '5, 5')
@@ -3575,16 +3482,14 @@
           });
         }.bind(this));
 
-        connectorGroups.exit().remove();
-        lines.exit().remove();
         return lines;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * The stackedLabels are appropriate for use with the stacked shape series.
    *
@@ -3674,31 +3579,27 @@
       },
 
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
-
-        var labelGroups = group.selectAll('g')
+        selection.append('g').attr('class', name);
+        var group = this.container.select('.' + name).selectAll('g')
           .data(data, d4.functor(scope.accessors.key).bind(this));
-
-        labelGroups.enter().append('g')
+        group.enter().append('g')
           .attr('class', function(d, i) {
             return 'series' + i + ' ' + this.x.$key;
           }.bind(this));
+        group.exit().remove();
 
-        labelGroups.exit().remove();
-
-        var text = labelGroups.selectAll('text')
+        var text = group.selectAll('text')
           .data(function(d) {
             return d.values;
           }.bind(this));
-
-        text.enter().append('text');
-
-        text
+        text.enter().append('text')
           .text(d4.functor(scope.accessors.text).bind(this))
           .attr('text-anchor', d4.functor(scope.accessors.textAnchor).bind(this))
           .attr('class', d4.functor(scope.accessors.classes).bind(this))
           .attr('y', d4.functor(scope.accessors.y).bind(this))
           .attr('x', d4.functor(scope.accessors.x).bind(this));
+
+        text.exit().remove();
 
         if (d4.functor(scope.accessors.stagger).bind(this)()) {
 
@@ -3721,16 +3622,14 @@
             });
           });
         });
-        labelGroups.exit().remove();
-        text.exit().remove();
         return text;
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   var sign = function(val) {
     return (val > 0) ? 'positive' : 'negative';
   };
@@ -3747,12 +3646,10 @@
 
   var useContinuousSize = function(dimension, d) {
     var axis = this[dimension];
-    var domainMin = axis.domain()[0];
-    var axisMin = Math.max(domainMin, 0);
     if (d4.isDefined(d.y0)) {
       return Math.abs(axis(d.y0) - axis(d.y0 + d.y));
     } else {
-      return Math.abs(axis(d[axis.$key]) - axis(axisMin));
+      return Math.abs(axis(d[axis.$key]) - axis(0));
     }
   };
 
@@ -3787,19 +3684,19 @@
       },
 
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
+        selection.append('g').attr('class', name);
 
         // create data join with the series data
-        var shapeGroups = group.selectAll('g')
+        var group = this.container.select('.' + name).selectAll('g')
           .data(data, d4.functor(scope.accessors.key).bind(this));
 
-        shapeGroups.enter().append('g')
+        group.enter().append('g')
           .attr('class', function(d, i) {
             return 'series' + i + ' ' + this.y.$key;
           }.bind(this));
-        shapeGroups.exit().remove();
+        group.exit().remove();
 
-        var shape = shapeGroups.selectAll(shapeType)
+        var shape = group.selectAll(shapeType)
           .data(function(d) {
             return d.values;
           });
@@ -3809,7 +3706,6 @@
         renderShapeAttributes.bind(this)(scope, shape);
 
         shape.exit().remove();
-        shapeGroups.exit().remove();
         return shape;
       }
     };
@@ -3970,11 +3866,11 @@
   d4.feature('rectSeries', function(name) {
     var rectObj = {
       accessors: {
-        height: function(yScaleId, d) {
-          if (d4.isOrdinalScale(this[yScaleId])) {
-            return useDiscreteSize.bind(this)(yScaleId);
+        height: function(d) {
+          if (d4.isOrdinalScale(this.y)) {
+            return useDiscreteSize.bind(this)('y');
           } else {
-            return useContinuousSize.bind(this)(yScaleId, d);
+            return useContinuousSize.bind(this)('y', d);
           }
         },
 
@@ -3982,11 +3878,11 @@
 
         ry: 0,
 
-        width: function(xScaleId, d) {
-          if (d4.isOrdinalScale(this[xScaleId])) {
-            return useDiscreteSize.bind(this)(xScaleId);
+        width: function(d) {
+          if (d4.isOrdinalScale(this.x)) {
+            return useDiscreteSize.bind(this)('x');
           } else {
-            return useContinuousSize.bind(this)(xScaleId, d);
+            return useContinuousSize.bind(this)('x', d);
           }
         },
 
@@ -4004,36 +3900,25 @@
           } else {
             return useContinuousPosition.bind(this)('y', d);
           }
-        },
-
-        xScaleId: function() {
-          return 'x';
-        },
-
-        yScaleId: function() {
-          return 'y';
         }
       }
     };
     var renderShape = function(scope, selection) {
-      var xScaleId = d4.functor(scope.accessors.xScaleId)();
-      var yScaleId = d4.functor(scope.accessors.yScaleId)();
-
       selection
         .attr('x', d4.functor(scope.accessors.x).bind(this))
         .attr('y', d4.functor(scope.accessors.y).bind(this))
         .attr('ry', d4.functor(scope.accessors.ry).bind(this))
         .attr('rx', d4.functor(scope.accessors.rx).bind(this))
-        .attr('width', d4.functor(scope.accessors.width).bind(this, xScaleId))
-        .attr('height', d4.functor(scope.accessors.height).bind(this, yScaleId));
+        .attr('width', d4.functor(scope.accessors.width).bind(this))
+        .attr('height', d4.functor(scope.accessors.height).bind(this));
     };
     var baseObj = baseShapeFeature.bind(this)(name, 'rect', renderShape);
     return d4.merge(baseObj, rectObj);
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
   /*
    * A trendline allows you to associate a line with a numerical value.
    *
@@ -4101,10 +3986,10 @@
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /*
    * Waterfall connectors are orthogonal series connectors which visually join
@@ -4122,13 +4007,6 @@
   d4.feature('waterfallConnectors', function(name) {
     return {
       accessors: {
-        beforeRender: function(data) {
-          var d = data.map(function(o) {
-            return o.values[0];
-          });
-          return d4.flatten(d);
-        },
-
         classes: function(d, i) {
           return 'series' + i;
         },
@@ -4162,10 +4040,16 @@
           }
         }
       },
+      prepare: function(data) {
+        var d = data.map(function(o) {
+          return o.values[0];
+        });
+        return d4.flatten(d);
+      },
 
       render: function(scope, data, selection) {
-        var group = d4.appendOnce(selection, 'g.' + name);
-        var lines = group.selectAll('line').data(data);
+        selection.append('g').attr('class', name);
+        var lines = this.container.select('.' + name).selectAll('.' + name).data(data);
         lines.enter().append('line');
         lines.exit().remove();
         lines
@@ -4210,10 +4094,10 @@
       }
     };
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /* This feature creates an xAxis for use within d4. There are a variety of
    * accessors described below which modify the behavior and apperance of the axis.
@@ -4270,9 +4154,9 @@
       return rect;
     };
 
-    var positionText = function(obj, aligned, klass, scaleId) {
+    var positionText = function(obj, aligned, klass) {
       if (obj.text) {
-        var axis = this.container.selectAll('.' + scaleId + '.axis');
+        var axis = this.container.selectAll('.x.axis');
         var axisBB = axis.node().getBBox();
         var textHeight = obj.height * 0.8;
         var text = axis.append('text')
@@ -4307,23 +4191,20 @@
         subtitle: undefined,
 
         title: undefined,
-
-        scaleId: function() {
-          return 'x';
-        }
       },
       proxies: [{
         target: axis
       }],
 
-      render: function(scope, data, selection) {
-        var scaleId = d4.functor(scope.accessors.scaleId).bind(this)();
-        scope.scale(this[scaleId]);
+      render: function(scope) {
+        scope.scale(this.x);
         var title = textRect(d4.functor(scope.accessors.title).bind(this)(), 'title');
         var subtitle = textRect(d4.functor(scope.accessors.subtitle).bind(this)(), 'subtitle');
         var aligned = d4.functor(scope.accessors.align).bind(this)();
-        var group = d4.appendOnce(selection, 'g.' + scaleId + '.axis.' + name)
-          .attr('data-scale', this[scaleId].$scale)
+        var group = this.container.select('g.margins')
+          .append('g')
+          .attr('class', 'x axis ' + name)
+          .attr('data-scale', this.x.$scale)
           .call(axis);
         alignAxis.bind(this)(aligned, group);
         if (d4.functor(scope.accessors.stagger).bind(this)()) {
@@ -4332,21 +4213,21 @@
           group.selectAll('.tick text').call(d4.helpers.staggerTextVertically, 1);
         }
         if (aligned === 'top') {
-          positionText.bind(this)(subtitle, aligned, 'subtitle', scaleId);
-          positionText.bind(this)(title, aligned, 'title', scaleId);
+          positionText.bind(this)(subtitle, aligned, 'subtitle');
+          positionText.bind(this)(title, aligned, 'title');
         } else {
-          positionText.bind(this)(title, aligned, 'title', scaleId);
-          positionText.bind(this)(subtitle, aligned, 'subtitle', scaleId);
+          positionText.bind(this)(title, aligned, 'title');
+          positionText.bind(this)(subtitle, aligned, 'subtitle');
         }
         return group;
       }
     };
     return obj;
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /* This feature creates an xAxis for use within d4. There are a variety of
    * accessors described below which modify the behavior and apperance of the axis.
@@ -4403,9 +4284,9 @@
       return rect;
     };
 
-    var positionText = function(obj, aligned, klass, scaleId) {
+    var positionText = function(obj, aligned, klass) {
       if (obj.text) {
-        var axis = this.container.selectAll('.' + scaleId + '.axis');
+        var axis = this.container.selectAll('.y.axis');
         var axisBB = axis.node().getBBox();
         var textHeight = obj.height * 0.8;
         var text = axis.append('text')
@@ -4440,23 +4321,20 @@
         subtitle: undefined,
 
         title: undefined,
-
-        scaleId: function() {
-          return 'y';
-        }
       },
       proxies: [{
         target: axis
       }],
-      render: function(scope, data, selection) {
-        var scaleId = d4.functor(scope.accessors.scaleId).bind(this)();
-        scope.scale(this[scaleId]);
+      render: function(scope) {
+        scope.scale(this.y);
         var title = textRect(d4.functor(scope.accessors.title).bind(this)(), 'title');
         var subtitle = textRect(d4.functor(scope.accessors.subtitle).bind(this)(), 'subtitle');
         var aligned = d4.functor(scope.accessors.align).bind(this)();
 
-        var group = d4.appendOnce(selection, 'g.' + scaleId + '.axis.' + name)
-          .attr('data-scale', this[scaleId].$scale)
+        var group = this.container.select('g.margins')
+          .append('g')
+          .attr('class', 'y axis ' + name)
+          .attr('data-scale', this.y.$scale)
           .call(axis);
 
         group.selectAll('.tick text')
@@ -4466,24 +4344,24 @@
         if (d4.functor(scope.accessors.stagger).bind(this)()) {
 
           // FIXME: This should be moved into a helper injected using DI.
-          this.container.selectAll('.' + scaleId + '.axis .tick text').call(d4.helpers.staggerTextHorizontally, -1);
+          this.container.selectAll('.y.axis .tick text').call(d4.helpers.staggerTextHorizontally, -1);
         }
         if (aligned === 'left') {
-          positionText.bind(this)(title, aligned, 'title', scaleId);
-          positionText.bind(this)(subtitle, aligned, 'subtitle', scaleId);
+          positionText.bind(this)(title, aligned, 'title');
+          positionText.bind(this)(subtitle, aligned, 'subtitle');
         } else {
-          positionText.bind(this)(subtitle, aligned, 'subtitle', scaleId);
-          positionText.bind(this)(title, aligned, 'title', scaleId);
+          positionText.bind(this)(subtitle, aligned, 'subtitle');
+          positionText.bind(this)(title, aligned, 'title');
         }
         return group;
       }
     };
     return obj;
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /**
    * The nested group parser is useful for grouped column charts where multiple
@@ -4618,10 +4496,10 @@
 
     return parser;
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /**
    * The nested stack parser is useful for charts which take a data series
@@ -4841,10 +4719,10 @@
 
     return parser;
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   /**
    * The waterfall parser is useful for waterfall charts where data items need to account
@@ -5046,10 +4924,10 @@
 
     return parser;
   });
-}).call(this);
+// }).call(this);
 
-(function() {
-  'use strict';
+// (function() {
+//   'use strict';
 
   var extractValues = function(data, key) {
     var values = data.map(function(obj) {
@@ -5057,7 +4935,7 @@
         return i[key];
       }.bind(this));
     }.bind(this));
-    return d3.set(d3.merge(values)).values();
+    return d3.merge(values);
   };
 
   var rangeFor = function(chart, dimension) {
@@ -5068,14 +4946,6 @@
         return [0, chart.width];
       case 'y':
         return [chart.height, 0];
-      case 'groups':
-        var groupDimension = chart.axes.groups.$dimension;
-        if (groupDimension === 'x') {
-          return [0, chart.axes.x.rangeBand()];
-        } else {
-          return [chart.axes.y.rangeBand(), 0];
-        }
-        break;
       default:
         return [];
     }
@@ -5110,7 +4980,7 @@
     if (!axis.clamp.$dirty) {
       axis.clamp(true);
     }
-    return chart[dimension];
+    return chart[dimension].nice();
   };
 
   /**
@@ -5143,19 +5013,7 @@
    */
   d4.builder('ordinalScaleForNestedData', function(chart, data, dimension) {
     var parsedData = extractValues(data, chart[dimension].$key);
-
-    // Apply the padding to a `rangeRoundBands` d3 scale. Check for a custom
-    // or existing padding set by the scale, otherwise provide a default.
-    var bands;
-    if (chart[dimension + 'RoundBands']) {
-      bands = chart[dimension + 'RoundBands'];
-    } else if (chart[dimension].$roundBands) {
-      bands = chart[dimension].$roundBands;
-    } else {
-      bands = 0.3;
-    }
-    chart[dimension + 'RoundBands'] = bands;
-
+    var bands = chart[dimension + 'RoundBands'] = chart[dimension + 'RoundBands'] || 0.3;
     var axis = chart[dimension];
     if (!axis.domain.$dirty) {
       axis.domain(parsedData);
@@ -5166,5 +5024,4 @@
     }
     return axis;
   });
-
 }).call(this);
